@@ -1,12 +1,11 @@
 """Main file of the app. This file contains the authentication process
 and the main features."""
 
-from __future__ import print_function, unicode_literals
-
 import json
 from datetime import *
+from enum import Enum
 
-from PyInquirer import prompt
+import inquirer
 from ticktick.api import TickTickClient
 from ticktick.oauth2 import OAuth2
 
@@ -24,6 +23,12 @@ PASSWORD = "2DB2y\eW~@8QHY>F"
 # ID of the group gathering all the interesting task lists
 GINETTE_GROUP_ID = '62b4b7cdaa2a9e4c9aa9fdf5'
 
+# Enumerations for the menus
+MainMenuChoices = Enum('MainMenuChoices', ['TASK', 'SCHEMA', 'QUIT'])
+TaskMenuChoices = Enum('TaskMenuChoices', ['CREATE', 'EDIT', 'DELETE', 'QUIT'])
+Priority = Enum('Priority', [('NO_PRIORITY', 0),
+                ('LOW', 1), ('MEDIUM', 3), ('HIGH', 5)])
+
 # Authentication process
 auth_client = OAuth2(
     client_id=APP_ID, client_secret=APP_SECRET, redirect_uri=APP_URI)
@@ -39,154 +44,92 @@ continue_app = True  # Variable indicating whether we should stop the app or not
 
 while continue_app:
     # Main menu
-    SCHEMA_MSG = 'Ajouter / modifier / supprimer un schéma de répétition'
-    TASK_MSG = 'Ajouter / modifier / supprimer un cours'
-    QUIT_MSG = 'Quitter le programme'
-
-    main_menu = [
-        {
-            'type': 'list',
-            'name': 'main_menu',
-            'message': 'Que voulez-vous faire ?',
-            'choices': [TASK_MSG, SCHEMA_MSG, QUIT_MSG]
-        }
-    ]
-
-    main_menu_answer = prompt(main_menu)['main_menu']
+    main_menu_answer = inquirer.list_input(
+        'Que voulez-vous faire ? ',
+        choices=[
+            ('Ajouter / modifier / supprimer un cours', MainMenuChoices.TASK),
+            ('Ajouter / modifier / supprimer un schéma de répétition',
+             MainMenuChoices.SCHEMA),
+            ('Quitter le programme', MainMenuChoices.QUIT)
+        ]
+    )
 
     # Task menu
-    if main_menu_answer == TASK_MSG:
-        # Options shown to the user
-        CREATE_TASK_MSG = 'Créer un cours'
-        EDIT_TASK_MSG = 'Éditer un cours existant'
-        DELETE_TASK_MSG = 'Supprimer un cours existant'
-        BACK_TO_MAIN_MSG = 'Revenir au menu principal'
-
-        # Configuration dict for the menu
-        task_menu = [
-            {
-                'type': 'list',
-                'name': 'task_menu',
-                'message': 'Quelle opération voulez-vous effectuer sur vos cours ?',
-                'choices': [CREATE_TASK_MSG, EDIT_TASK_MSG, DELETE_TASK_MSG, BACK_TO_MAIN_MSG]
-            }
-        ]
-
-        task_menu_answer = prompt(task_menu)['task_menu'] # Displays the menu
+    if main_menu_answer == MainMenuChoices.TASK:
+        # Task menu
+        task_menu_answer = inquirer.list_input(
+            'Quelle opération voulez-vous effectuer sur vos cours ? ',
+            choices=[
+                ('Créer un cours', TaskMenuChoices.CREATE),
+                ('Éditer un cours existant', TaskMenuChoices.EDIT),
+                ('Supprimer un cours existant', TaskMenuChoices.DELETE),
+                ('Revenir au menu principal', TaskMenuChoices.QUIT)
+            ]
+        )
 
         # Task creation menu
-        if task_menu_answer == CREATE_TASK_MSG:
-            # Options for priority
-            PRIORITY_NONE = 'Pas de priorité'
-            PRIORITY_LOW = 'Basse'
-            PRIORITY_MEDIUM = 'Moyenne'
-            PRIORITY_HIGH = 'Élevée'
+        if task_menu_answer == TaskMenuChoices.CREATE:
+            # Task menu configuration and displaying
+            task_data = inquirer.prompt([
+                inquirer.Text('title', 'Titre du cours à réviser'),
+                inquirer.List('projectId', 'Matière', list(map(lambda project: (project['name'], project['id']), filter(
+                    lambda project: project['groupId'] == GINETTE_GROUP_ID, client.state['projects'])))),
+                inquirer.List('rehearsalSchema', 'Schéma de répétition', list(
+                    map(lambda schema: (schema['name'], schema['schema']), local_data['rehearsal_schemas']))),
+                inquirer.List('priority', 'Priorité', [('Élevée', Priority.HIGH.value), ('Moyenne', Priority.MEDIUM.value), (
+                    'Basse', Priority.LOW.value), ('Pas de priorité', Priority.NO_PRIORITY.value)])
+            ])
 
-            # Utility functions
-            def projectName2ID(projectName):
-                for project in client.state['projects']:
-                    if projectName == project['name']:
-                        return project['id']
-            
-            def schemaName2List(schemaName):
-                for schema in local_data['rehearsal_schemas']:
-                    if schema['name'] == schemaName:
-                        return schema['schema']
-            
-            def priority2Int(priorityName):
-                converter = {PRIORITY_NONE: 0, PRIORITY_LOW: 1, PRIORITY_MEDIUM: 3, PRIORITY_HIGH: 5}
-                return converter[priorityName]
+            if task_data is not None:
+                # We create the different tasks, store their dict in JSON file
+                created_tasks = []
 
-            # Menu configuration
-            task_creation_menu = [
-                {
-                    'type': 'input',
-                    'name': 'title',
-                    'message': 'Titre du cours à réviser :'
-                },
-                {
-                    'type': 'list',
-                    'name': 'projectId',
-                    'message': 'Matière :',
-                    'choices': list(map(lambda project: project['name'], filter(lambda project: project['groupId'] == GINETTE_GROUP_ID, client.state['projects']))),
-                    'filter': projectName2ID 
-                },
-                {
-                    'type': 'list',
-                    'name': 'rehearsalSchema',
-                    'message': 'Schéma de répétition :',
-                    'choices': list(map(lambda schema: schema['name'], local_data['rehearsal_schemas'])),
-                    'filter': schemaName2List
-                },
-                {
-                    'type': 'list',
-                    'name': 'priority',
-                    'message': 'Priorité :',
-                    'choices': [PRIORITY_MEDIUM, PRIORITY_LOW, PRIORITY_HIGH, PRIORITY_NONE],
-                    'filter': priority2Int
-                }
-            ]
-
-            task_data = prompt(task_creation_menu) # Displays the menu and retrieves the answers
-
-            # We create the different tasks, store their dict in JSON file
-            created_tasks = []
-
-            for day_delta in task_data['rehearsalSchema']:
-                # We create the task corresponding to this time interval
-                created_tasks.append(
-                    client.task.create(
-                        client.task.builder(
-                            title=task_data['title'],
-                            projectId=task_data['projectId'],
-                            startDate=datetime.combine(date.today(), time()) + timedelta(days=day_delta),
-                            priority=task_data['priority'],
-                            allDay=True
+                for day_delta in task_data['rehearsalSchema']:
+                    # We create the task corresponding to this time interval
+                    created_tasks.append(
+                        client.task.create(
+                            client.task.builder(
+                                title=task_data['title'],
+                                projectId=task_data['projectId'],
+                                startDate=datetime.combine(
+                                    date.today(), time()) + timedelta(days=day_delta),
+                                priority=task_data['priority'],
+                                allDay=True
+                            )
                         )
                     )
-                )
-            
-            local_data['tasks'].append({
-                'title': task_data['title'],
-                'tasks_dicts': created_tasks
-            })
 
-            # We dump current data into the file
-            with open('data.json', 'w') as file:
-                json.dump(local_data, file)
+                local_data['tasks'].append({
+                    'title': task_data['title'],
+                    'tasks_dicts': created_tasks
+                })
 
-        elif task_menu_answer == EDIT_TASK_MSG:
+                # We dump current data into the file
+                with open('data.json', 'w') as file:
+                    json.dump(local_data, file)
+
+        elif task_menu_answer == TaskMenuChoices.EDIT:
             pass
 
-        elif task_menu_answer == DELETE_TASK_MSG:
-            # First, we retrieve all the tasks created with this tool
-            existing_tasks = list(map(lambda task: task['title'], local_data['tasks']))
+        elif task_menu_answer == TaskMenuChoices.DELETE:
+            if len(local_data['tasks']) > 0:
+                deleted_task_rank = inquirer.list_input('Tâche que vous souhaitez supprimer', choices=[
+                                                        (task['title'], k) for k, task in enumerate(local_data['tasks'])])
 
-            if len(existing_tasks) > 0:
-                # Menu configuration
-                task_deletion_menu = [{
-                    'type': 'list',
-                    'name': 'taskName',
-                    'message': 'Tâche que vous souhaitez supprimer :',
-                    'choices': existing_tasks
-                }]
+                # Deletion of the task on TickTick
+                client.task.delete(
+                    local_data['tasks'][deleted_task_rank]['tasks_dicts'])
+                # Deletion of the task stored locally
+                local_data['tasks'].pop(deleted_task_rank)
 
-                deleted_task_name = prompt(task_deletion_menu)['taskName'] # Displays the menu
+                with open('data.json', 'w') as file:
+                    json.dump(local_data, file)
 
-                # We retrieve the tasks to delete and proceed
-                for k in range(len(local_data['tasks'])):
-                    if local_data['tasks'][k]['title'] == deleted_task_name:
-                        client.task.delete(local_data['tasks'][k]['tasks_dicts']) # Deletion of the task on TickTick
-                        local_data['tasks'].pop(k) # Deletion of the task locally
-
-                        with open('data.json', 'w') as file:
-                            json.dump(local_data, file)
-            
             else:
                 print('Aucune tâche à supprimer')
-    
+
     # Menu handling rehearsal schemas
-    elif main_menu_answer == SCHEMA_MSG:
+    elif main_menu_answer == MainMenuChoices.SCHEMA:
         pass
 
     else:
