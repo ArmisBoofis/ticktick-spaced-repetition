@@ -159,7 +159,31 @@ while continue_app:
             pass
 
         elif task_menu_answer == DELETE_TASK_MSG:
-            pass
+            # First, we retrieve all the tasks created with this tool
+            existing_tasks = list(map(lambda task: task['title'], local_data['tasks']))
+
+            if len(existing_tasks) > 0:
+                # Menu configuration
+                task_deletion_menu = [{
+                    'type': 'list',
+                    'name': 'taskName',
+                    'message': 'Tâche que vous souhaitez supprimer :',
+                    'choices': existing_tasks
+                }]
+
+                deleted_task_name = prompt(task_deletion_menu)['taskName'] # Displays the menu
+
+                # We retrieve the tasks to delete and proceed
+                for k in range(len(local_data['tasks'])):
+                    if local_data['tasks'][k]['title'] == deleted_task_name:
+                        client.task.delete(local_data['tasks'][k]['tasks_dicts']) # Deletion of the task on TickTick
+                        local_data['tasks'].pop(k) # Deletion of the task locally
+
+                        with open('data.json', 'w') as file:
+                            json.dump(local_data, file)
+            
+            else:
+                print('Aucune tâche à supprimer')
     
     # Menu handling rehearsal schemas
     elif main_menu_answer == SCHEMA_MSG:
