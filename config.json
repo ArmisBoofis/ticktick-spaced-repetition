@@ -1,0 +1,44 @@
+{
+  "main_menu": {
+    "message": "Que voulez-vous faire ? ",
+    "task_message": "Ajouter / modifier / supprimer un cours",
+    "schema_message": "Ajouter / modifier / supprimer un schéma de répétition",
+    "quit_message": "Quitter le programme"
+  },
+  "task_menu": {
+    "message": "Quelle opération voulez-vous effectuer sur vos cours ? ",
+    "creation_message": "Créer un cours",
+    "edition_message": "Éditer un cours existant",
+    "deletion_message": "Supprimer un cours existant",
+    "quit_message": "Revenir au menu principal"
+  },
+  "schema_menu": {
+    "message": "Quelle opération voulez-vous effectuer sur vos schémas de répétition ?",
+    "creation_message": "Créer un nouveau schéma de répétition",
+    "edition_message": "Éditer un schéma de répétition existant",
+    "deletion_message": "Supprimer un schéma de répétition existant",
+    "quit_message": "Revenir au menu principal"
+  },
+  "task_creation_menu": {
+    "title_message": "Titre du cours à réviser",
+    "project_message": "Matière",
+    "schema_message": "Schéma de répétition",
+    "priority_message": "Priorité",
+    "priority": {
+      "low": "Basse",
+      "medium": "Moyenne",
+      "high": "Élevée",
+      "none": "Pas de priorité"
+    }
+  },
+  "task_selection_menu": {
+    "message": "Sélectionnez une tâche"
+  },
+  "schema_creation_menu": {
+    "name_message": "Nom du schéma",
+    "schema_message": "Schéma (intervalles en jours, séparés par des espaces)"
+  },
+  "schema_selection_menu": {
+    "message": "Sélectionnez le schéma que vous souhaitez modifier"
+  }
+}

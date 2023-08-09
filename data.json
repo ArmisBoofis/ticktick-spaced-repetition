@@ -1,8 +1,1 @@
-{
-  "rehearsal_schemas": [
-    { "name": "Normal", "schema": [0, 1, 3, 7, 15, 30, 60] },
-    { "name": "Lourd", "schema": [0, 1, 3, 7, 15, 30, 60, 120] },
-    { "name": "Léger", "schema": [0, 1, 3, 7, 15, 30] }
-  ],
-  "tasks": []
-}
+{"schemas": [{"name": "Normal", "schema": [0, 1, 3, 7, 15, 30, 60]}, {"name": "Lourd", "schema": [0, 1, 3, 7, 15, 30, 60, 120]}, {"name": "Léger", "schema": [0, 1, 3, 7, 15, 30]}], "tasks": []}
