@@ -2,6 +2,7 @@
 and the main features."""
 
 import json
+import re
 from datetime import *
 from enum import Enum
 
@@ -26,6 +27,8 @@ GINETTE_GROUP_ID = '62b4b7cdaa2a9e4c9aa9fdf5'
 # Enumerations for the menus
 MainMenuChoices = Enum('MainMenuChoices', ['TASK', 'SCHEMA', 'QUIT'])
 TaskMenuChoices = Enum('TaskMenuChoices', ['CREATE', 'EDIT', 'DELETE', 'QUIT'])
+SchemaMenuChoices = Enum('SchemaMenuChoices', [
+                         'CREATE', 'EDIT', 'DELETE', 'QUIT'])
 Priority = Enum('Priority', [('NO_PRIORITY', 0),
                 ('LOW', 1), ('MEDIUM', 3), ('HIGH', 5)])
 
@@ -132,7 +135,8 @@ while continue_app:
                 ])
 
                 # First, we have to delete the former tasks
-                client.task.delete(local_data['tasks'][edited_task_rank]['tasks_dicts'])
+                client.task.delete(
+                    local_data['tasks'][edited_task_rank]['tasks_dicts'])
                 local_data['tasks'].pop(edited_task_rank)
 
                 with open('data.json', 'w') as file:
@@ -190,13 +194,72 @@ while continue_app:
 
     # Menu handling rehearsal schemas
     elif main_menu_answer == MainMenuChoices.SCHEMA:
-        pass
+        # Schema menu
+        schema_menu_answer = inquirer.list_input('Quelle opération voulez-vous effectuer sur vos schémas de répétition ?', choices=[
+            ('Créer un nouveau schéma de répétition', SchemaMenuChoices.CREATE),
+            ('Éditer un schéma de répétition existant', SchemaMenuChoices.EDIT),
+            ('Supprimer un schéma de répétition existant', SchemaMenuChoices.DELETE),
+            ('Revenir au menu principal', SchemaMenuChoices.QUIT)
+        ])
+
+        if schema_menu_answer == SchemaMenuChoices.CREATE:
+            # Schema creation menu
+            new_schema_data = inquirer.prompt([
+                inquirer.Text('name', 'Nom du schéma'),
+                inquirer.Text('schema', 'Schéma (intervalles en jours, séparés par des espaces)',
+                              validate=lambda _, c: re.fullmatch('([0-9]+ ?)+', c) is not None)
+            ])
+
+            # We change the <local_data> object first
+            new_schema_data['schema'] = [int(day_delta) for day_delta in list(
+                filter(None, new_schema_data['schema'].split(' ')))]
+            local_data['rehearsal_schemas'].append(new_schema_data)
+
+            # We store this piece of data inside the <data.json> file
+            with open('data.json', 'w') as file:
+                json.dump(local_data, file)
+
+        elif schema_menu_answer == SchemaMenuChoices.EDIT:
+            # Schema choice menu
+            schema_rank = inquirer.list_input('Sélectionnez le schéma que vous souhaitez modifier', choices=[
+                                              (schema['name'], k) for k, schema in enumerate(local_data['rehearsal_schemas'])])
+
+            # Schema creation menu
+            former_schema_data = local_data['rehearsal_schemas'][schema_rank]
+
+            new_schema_data = inquirer.prompt([
+                inquirer.Text('name', 'Nom du schéma',
+                              former_schema_data['name']),
+                inquirer.Text('schema', 'Schéma (intervalles en jours, séparés par des espaces)', ' '.join([str(day_delta) for day_delta in former_schema_data['schema']]),
+                              validate=lambda _, c: re.fullmatch('([0-9]+ ?)+', c) is not None)
+            ])
+
+            # We change the <local_data> object first
+            new_schema_data['schema'] = [int(day_delta) for day_delta in list(
+                filter(None, new_schema_data['schema'].split(' ')))]
+            local_data['rehearsal_schemas'][schema_rank] = new_schema_data
+
+            # We reflect this change in the <data.json> file
+            with open('data.json', 'w') as file:
+                json.dump(local_data, file)
+
+        elif schema_menu_answer == SchemaMenuChoices.DELETE:
+            # Schema choice menu
+            schema_rank = inquirer.list_input('Sélectionnez le schéma que vous souhaitez supprimer', choices=[
+                                              (schema['name'], k) for k, schema in enumerate(local_data['rehearsal_schemas'])])
+            
+            local_data['rehearsal_schemas'].pop(schema_rank) # We delete the schema locally
+
+            # We reflect this change in the <data.json> file
+            with open('data.json', 'w') as file:
+                json.dump(local_data, file)
 
     else:
         continue_app = False
 
 # TODO :
-# - Menu des schémas
 # - Refactoriser tout le code
 # - Gérer l'interruption d'un menu par l'utilisateur
+# - Demander confirmation en cas de suppression
 # - Afficher des messages d'attente (les colorer si possible)
+# - Bien gérer les sauts de ligne
