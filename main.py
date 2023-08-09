@@ -7,8 +7,11 @@ from datetime import *
 from enum import Enum
 
 import inquirer
+from colorama import Fore, init
 from ticktick.api import TickTickClient
 from ticktick.oauth2 import OAuth2
+
+init(autoreset=True)  # Initialization for colorama
 
 # -------------------------------------------------- CONSTANTS --------------------------------------------------
 
@@ -53,6 +56,8 @@ def batch_create(title, project_ID, priority, schema):
     """This function creates multiple tasks according to a rehearsal schema, and
     stores them both online and locally."""
 
+    print(Fore.YELLOW + "Création de la tâche...")
+
     # We create the different tasks, and we store their dicts in the JSON file
     created_tasks = []
 
@@ -86,10 +91,14 @@ def batch_create(title, project_ID, priority, schema):
 
     refresh_storage()  # ...and store it to the local JSON file
 
+    print(Fore.GREEN + "Tâche créée avec succès\n")
+
 
 def batch_delete(task_rank):
     """This function deletes a task that has been repeated
     following a rehearsal schema"""
+
+    print(Fore.YELLOW + "Suppression de la tâche...")
 
     # Deletion on TickTick
     client.task.delete(local_data["tasks"][task_rank]["tasks_dicts"])
@@ -97,6 +106,8 @@ def batch_delete(task_rank):
     # Local deletion
     local_data["tasks"].pop(task_rank)
     refresh_storage()
+
+    print(Fore.GREEN + "Tâche supprimée avec succès\n")
 
 
 # -------------------------------------------------- MENUS --------------------------------------------------
@@ -307,7 +318,7 @@ while continue_app:
                         )
 
             else:
-                print("Aucune tâche à éditer")
+                print(Fore.RED + "Aucune tâche à éditer")
 
         elif task_menu_answer == TaskMenuChoices.DELETE:
             if len(local_data["tasks"]) > 0:
@@ -321,7 +332,7 @@ while continue_app:
                     batch_delete(deleted_task_rank)
 
             else:
-                print("Aucune tâche à supprimer")
+                print(Fore.RED + "Aucune tâche à supprimer")
 
     # Rehearsal schemas menu
     elif main_menu_answer == MainMenuChoices.SCHEMA:
@@ -389,8 +400,3 @@ while continue_app:
 
     else:
         continue_app = False
-
-# TODO :
-# - Mettre des réponses par défaut dans les questions de sélection
-# - Afficher des messages d'attente (les colorer si possible)
-# - Bien gérer les sauts de ligne
