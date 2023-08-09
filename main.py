@@ -175,10 +175,19 @@ def prompt_task_selection():
     """This function displays a menu prompting the user
     to select an existing task."""
 
-    return inquirer.list_input(
-        config["task_selection_menu"]["message"],
-        choices=[(task["title"], k) for k, task in enumerate(local_data["tasks"])],
+    answer = inquirer.prompt(
+        [
+            inquirer.List(
+                "selection",
+                config["task_selection_menu"]["message"],
+                choices=[
+                    (task["title"], k) for k, task in enumerate(local_data["tasks"])
+                ],
+            )
+        ]
     )
+
+    return answer["selection"] if answer is not None else None
 
 
 def prompt_schema_data(name=None, schema_text=None):
@@ -211,10 +220,20 @@ def prompt_schema_selection():
     """This function displays a menu prompting the user
     to select an existing rehearsal schema."""
 
-    return inquirer.list_input(
-        config["schema_selection_menu"]["message"],
-        choices=[(schema["name"], k) for k, schema in enumerate(local_data["schemas"])],
+    answer = inquirer.prompt(
+        [
+            inquirer.List(
+                "selection",
+                config["schema_selection_menu"]["message"],
+                choices=[
+                    (schema["name"], k)
+                    for k, schema in enumerate(local_data["schemas"])
+                ],
+            )
+        ]
     )
+
+    return answer["selection"] if answer is not None else None
 
 
 # -------------------------------------------------- MAIN APP -----------------------------------------------
@@ -261,34 +280,43 @@ while continue_app:
         elif task_menu_answer == TaskMenuChoices.EDIT:
             if len(local_data["tasks"]) > 0:
                 edited_task_rank = prompt_task_selection()  # Selection of the task
-                former_task_data = local_data["tasks"][edited_task_rank]  # Current task
 
-                # We prompt the user for the updated information
-                new_task_data = prompt_task_data(
-                    title=former_task_data["title"],
-                    project_ID=former_task_data["project_ID"],
-                    schema=former_task_data["schema"],
-                    priority=former_task_data["priority"],
-                )
+                if edited_task_rank is not None:
+                    former_task_data = local_data["tasks"][
+                        edited_task_rank
+                    ]  # Current task
 
-                # First, we have to delete the former tasks
-                batch_delete(edited_task_rank)
+                    # We prompt the user for the updated information
+                    new_task_data = prompt_task_data(
+                        title=former_task_data["title"],
+                        project_ID=former_task_data["project_ID"],
+                        schema=former_task_data["schema"],
+                        priority=former_task_data["priority"],
+                    )
 
-                # Then we recreate the tasks
-                batch_create(
-                    new_task_data["title"],
-                    new_task_data["project_ID"],
-                    new_task_data["priority"],
-                    new_task_data["schema"],
-                )
+                    if new_task_data is not None:
+                        # First, we have to delete the former tasks
+                        batch_delete(edited_task_rank)
+
+                        # Then we recreate the tasks
+                        batch_create(
+                            new_task_data["title"],
+                            new_task_data["project_ID"],
+                            new_task_data["priority"],
+                            new_task_data["schema"],
+                        )
 
             else:
                 print("Aucune tâche à éditer")
 
         elif task_menu_answer == TaskMenuChoices.DELETE:
             if len(local_data["tasks"]) > 0:
-                # We prompt the user to select an existing task and then we delete it
-                batch_delete(prompt_task_selection())
+                # We prompt the user to select an existing task
+                deleted_task_rank = prompt_task_selection()
+
+                # We delete the task if the process has not been cancelled by the user
+                if deleted_task_rank is not None:
+                    batch_delete(deleted_task_rank)
 
             else:
                 print("Aucune tâche à supprimer")
@@ -322,36 +350,43 @@ while continue_app:
             # Schema creation menu
             new_schema_data = prompt_schema_data()
 
-            # We change the <local_data> object first and then refresh the file
-            local_data["schemas"].append(new_schema_data)
-            refresh_storage()
+            if new_schema_data is not None:
+                # We change the <local_data> object first and then refresh the file
+                local_data["schemas"].append(new_schema_data)
+                refresh_storage()
 
         elif schema_menu_answer == SchemaMenuChoices.EDIT:
             schema_rank = prompt_schema_selection()  # Schema selection menu
-            former_schema_data = local_data["schemas"][schema_rank]
 
-            # We prompt the user to type in the new data
-            new_schema_data = prompt_schema_data(
-                former_schema_data["name"],
-                " ".join(
-                    [str(day_delta) for day_delta in former_schema_data["schema"]]
-                ),
-            )
+            if schema_rank is not None:
+                former_schema_data = local_data["schemas"][schema_rank]
 
-            # We change the <local_data> object first and then refresh the file
-            local_data["schemas"][schema_rank] = new_schema_data
-            refresh_storage()
+                # We prompt the user to type in the new data
+                new_schema_data = prompt_schema_data(
+                    former_schema_data["name"],
+                    " ".join(
+                        [str(day_delta) for day_delta in former_schema_data["schema"]]
+                    ),
+                )
+
+                if new_schema_data is not None:
+                    # We change the <local_data> object first and then refresh the file
+                    local_data["schemas"][schema_rank] = new_schema_data
+                    refresh_storage()
 
         elif schema_menu_answer == SchemaMenuChoices.DELETE:
+            # We prompt the user to select the schema he wants to delete
+            deleted_schema_rank = prompt_schema_selection()
+
             # We delete the schema in the <local_data> object and then refresh the file
-            local_data["schemas"].pop(prompt_schema_selection())
-            refresh_storage()
+            if deleted_task_rank is not None:
+                local_data["schemas"].pop()
+                refresh_storage()
 
     else:
         continue_app = False
 
 # TODO :
-# - Gérer l'interruption d'un menu par l'utilisateur
 # - Demander confirmation en cas de suppression
 # - Mettre des réponses par défaut dans les questions de sélection
 # - Afficher des messages d'attente (les colorer si possible)
