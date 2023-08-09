@@ -39,6 +39,8 @@
     "schema_message": "Schéma (intervalles en jours, séparés par des espaces)"
   },
   "schema_selection_menu": {
-    "message": "Sélectionnez le schéma que vous souhaitez modifier"
-  }
+    "message": "Sélectionnez un schéma"
+  },
+  "task_deletion_message": "Voulez-vous vraiment supprimer cette tâche ? ",
+  "schema_deletion_message": "Voulez-vous vraiment supprimer ce schéma ? "
 }

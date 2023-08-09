@@ -315,7 +315,9 @@ while continue_app:
                 deleted_task_rank = prompt_task_selection()
 
                 # We delete the task if the process has not been cancelled by the user
-                if deleted_task_rank is not None:
+                if deleted_task_rank is not None and inquirer.confirm(
+                    config["task_deletion_message"]
+                ):
                     batch_delete(deleted_task_rank)
 
             else:
@@ -379,7 +381,9 @@ while continue_app:
             deleted_schema_rank = prompt_schema_selection()
 
             # We delete the schema in the <local_data> object and then refresh the file
-            if deleted_task_rank is not None:
+            if deleted_schema_rank is not None and inquirer.confirm(
+                config["schema_deletion_message"]
+            ):
                 local_data["schemas"].pop()
                 refresh_storage()
 
@@ -387,7 +391,6 @@ while continue_app:
         continue_app = False
 
 # TODO :
-# - Demander confirmation en cas de suppression
 # - Mettre des réponses par défaut dans les questions de sélection
 # - Afficher des messages d'attente (les colorer si possible)
 # - Bien gérer les sauts de ligne
