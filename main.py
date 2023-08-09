@@ -101,6 +101,9 @@ while continue_app:
 
                 local_data['tasks'].append({
                     'title': task_data['title'],
+                    'projectId': task_data['projectId'],
+                    'rehearsalSchema': task_data['rehearsalSchema'],
+                    'priority': task_data['priority'],
                     'tasks_dicts': created_tasks
                 })
 
@@ -109,7 +112,64 @@ while continue_app:
                     json.dump(local_data, file)
 
         elif task_menu_answer == TaskMenuChoices.EDIT:
-            pass
+            if len(local_data['tasks']) > 0:
+                edited_task_rank = inquirer.list_input('Tâche que vous souhaitez éditer', choices=[
+                                                       (task['title'], k) for k, task in enumerate(local_data['tasks'])])
+
+                # Data stored locally
+                local_task_data = local_data['tasks'][edited_task_rank]
+
+                # We prompt the user for new data, with the right default values
+                new_task_data = inquirer.prompt([
+                    inquirer.Text('title', 'Titre du cours à réviser',
+                                  local_task_data['title']),
+                    inquirer.List('projectId', 'Matière', list(map(lambda project: (project['name'], project['id']), filter(
+                        lambda project: project['groupId'] == GINETTE_GROUP_ID, client.state['projects']))), local_task_data['projectId']),
+                    inquirer.List('rehearsalSchema', 'Schéma de répétition', list(
+                        map(lambda schema: (schema['name'], schema['schema']), local_data['rehearsal_schemas'])), local_task_data['rehearsalSchema']),
+                    inquirer.List('priority', 'Priorité', [('Élevée', Priority.HIGH.value), ('Moyenne', Priority.MEDIUM.value), (
+                        'Basse', Priority.LOW.value), ('Pas de priorité', Priority.NO_PRIORITY.value)], local_task_data['priority'])
+                ])
+
+                # First, we have to delete the former tasks
+                client.task.delete(local_data['tasks'][edited_task_rank]['tasks_dicts'])
+                local_data['tasks'].pop(edited_task_rank)
+
+                with open('data.json', 'w') as file:
+                    json.dump(local_data, file)
+
+                # Then we recreate the task
+                created_tasks = []
+
+                for day_delta in new_task_data['rehearsalSchema']:
+                    # We create the task corresponding to this time interval
+                    created_tasks.append(
+                        client.task.create(
+                            client.task.builder(
+                                title=new_task_data['title'],
+                                projectId=new_task_data['projectId'],
+                                startDate=datetime.combine(
+                                    date.today(), time()) + timedelta(days=day_delta),
+                                priority=new_task_data['priority'],
+                                allDay=True
+                            )
+                        )
+                    )
+
+                local_data['tasks'].append({
+                    'title': new_task_data['title'],
+                    'projectId': new_task_data['projectId'],
+                    'rehearsalSchema': new_task_data['rehearsalSchema'],
+                    'priority': new_task_data['priority'],
+                    'tasks_dicts': created_tasks
+                })
+
+                # We dump current data into the file
+                with open('data.json', 'w') as file:
+                    json.dump(local_data, file)
+
+            else:
+                print('Aucune tâche à éditer')
 
         elif task_menu_answer == TaskMenuChoices.DELETE:
             if len(local_data['tasks']) > 0:
@@ -134,3 +194,9 @@ while continue_app:
 
     else:
         continue_app = False
+
+# TODO :
+# - Menu des schémas
+# - Refactoriser tout le code
+# - Gérer l'interruption d'un menu par l'utilisateur
+# - Afficher des messages d'attente (les colorer si possible)
