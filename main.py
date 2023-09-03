@@ -32,8 +32,13 @@ DATA_FILE_PATH = "./data.json"
 CONFIG_FILE_PATH = "./config.json"
 
 # Authentication process
+
+print(Fore.YELLOW + "Connexion à l'API TickTick...")
+
 auth_client = OAuth2(client_id=APP_ID, client_secret=APP_SECRET, redirect_uri=APP_URI)
 client = TickTickClient(USERNAME, PASSWORD, auth_client)
+
+print(Fore.GREEN + "Connexion établie\n")
 
 # Parsing local data and configuration
 with open(DATA_FILE_PATH, encoding="utf8") as file:
@@ -74,6 +79,7 @@ def batch_create(title, project_ID, priority, schema):
                     ),
                     priority=priority,
                     allDay=True,
+                    tags=["révision"],
                 )
             )
         )
