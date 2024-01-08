@@ -22,7 +22,7 @@ APP_URI = "http://127.0.0.1:8080"
 
 # Account credentials
 USERNAME = "armand.malinvaud@icloud.com"
-PASSWORD = "2DB2y\eW~@8QHY>F"
+PASSWORD = r"2DB2y\eW~@8QHY>F"
 
 # ID of the group gathering all the interesting task lists
 GINETTE_GROUP_ID = "62b4b7cdaa2a9e4c9aa9fdf5"
@@ -68,21 +68,21 @@ def batch_create(title, project_ID, priority, schema):
 
     for day_delta in schema:
         # We create the task corresponding to this time interval
-        created_tasks.append(
-            client.task.create(
-                client.task.builder(
-                    title=title,
-                    projectId=project_ID,
-                    startDate=(
-                        datetime.combine(date.today(), time())
-                        + timedelta(days=day_delta)
-                    ),
-                    priority=priority,
-                    allDay=True,
-                    tags=["révision"],
-                )
-            )
+        task_data = client.task.builder(
+            title=title,
+            projectId=project_ID,
+            startDate=(
+                datetime.combine(date.today(), time()) + timedelta(days=day_delta)
+            ),
+            priority=priority,
         )
+
+        # We add the fields that are not taken into account by the builder
+        task_data["isAllDay"] = True
+        task_data["tags"] = ["révisions"]
+
+        # We properly create the task here
+        created_tasks.append(client.task.create(task_data))
 
     # We change the <local_data> object...
     local_data["tasks"].append(
