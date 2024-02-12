@@ -8,8 +8,9 @@ from enum import Enum
 
 import inquirer
 from colorama import Fore, init
-from ticktick.api import TickTickClient
-from ticktick.oauth2 import OAuth2
+
+from StorageManager import StorageManager
+from TickTickSchedulerClient import TickTickSchedulerClient
 
 init(autoreset=True)  # Initialization for colorama
 
@@ -20,98 +21,55 @@ APP_ID = "YmQWg8OkoiEe63456Y"
 APP_SECRET = "W(L#T@3Bv3O(D5ka!&cZ9ggS3&#B4!Pf"
 APP_URI = "http://127.0.0.1:8080"
 
-# Account credentials
-USERNAME = "armand.malinvaud@icloud.com"
-PASSWORD = r"2DB2y\eW~@8QHY>F"
-
 # ID of the group gathering all the interesting task lists
 GINETTE_GROUP_ID = "62b4b7cdaa2a9e4c9aa9fdf5"
 
-# Path to the JSON files used by the application
-DATA_FILE_PATH = "./data.json"
+# Path to the configuration file (prompts displayed in the various menus)
 CONFIG_FILE_PATH = "./config.json"
 
-# Authentication process
-
-print(Fore.YELLOW + "Connexion à l'API TickTick...")
-
-auth_client = OAuth2(client_id=APP_ID, client_secret=APP_SECRET, redirect_uri=APP_URI)
-client = TickTickClient(USERNAME, PASSWORD, auth_client)
-
-print(Fore.GREEN + "Connexion établie\n")
-
-# Parsing local data and configuration
-with open(DATA_FILE_PATH, encoding="utf8") as file:
-    local_data = json.load(file)
-
+# Parsing configuration
 with open(CONFIG_FILE_PATH, encoding="utf8") as file:
     config = json.load(file)
+
+# ------------------------------------------------------ INITIALISATION -----------------------------------------
+
+# We create a <TickTickSchedulerClient> instance and a <StorageManager> instance
+api_client = TickTickSchedulerClient(APP_ID, APP_SECRET, APP_URI, GINETTE_GROUP_ID)
+storage_manager = StorageManager()
 
 # -------------------------------------------------- UTILITY FUNCTIONS --------------------------------------
 
 
-def refresh_storage():
-    """This function dumps the data object to the local storage file"""
-
-    with open(DATA_FILE_PATH, "w", encoding="utf8") as file:
-        json.dump(local_data, file, ensure_ascii=False)
-
-
-def batch_create(title, project_ID, priority, schema):
+def batch_create(title, project_id, priority, schema_id):
     """This function creates multiple tasks according to a rehearsal schema, and
     stores them both online and locally."""
 
     print(Fore.YELLOW + "Création de la tâche...")
 
-    # We create the different tasks, and we store their dicts in the JSON file
-    created_tasks = []
+    # First we retrieve the schema corresponding to the given ID
+    schema_data = storage_manager.fetch_schema_data(schema_id)
 
-    for day_delta in schema:
-        # We create the task corresponding to this time interval
-        task_data = client.task.builder(
-            title=title,
-            projectId=project_ID,
-            startDate=(
-                datetime.combine(date.today(), time()) + timedelta(days=day_delta)
-            ),
-            priority=priority,
-        )
-
-        # We add the fields that are not taken into account by the builder
-        task_data["isAllDay"] = True
-        task_data["tags"] = ["révisions"]
-
-        # We properly create the task here
-        created_tasks.append(client.task.create(task_data))
-
-    # We change the <local_data> object...
-    local_data["tasks"].append(
-        {
-            "title": title,
-            "project_ID": project_ID,
-            "schema": schema,
-            "priority": priority,
-            "tasks_dicts": created_tasks,
-        }
+    # We create the different tasks, first online and then we store the data locally
+    tasks_ids = api_client.batch_create_tasks(
+        title, project_id, priority, schema_data["schema"]
     )
-
-    refresh_storage()  # ...and store it to the local JSON file
+    storage_manager.save_task(schema_data["id"], title, project_id, priority, tasks_ids)
 
     print(Fore.GREEN + "Tâche créée avec succès\n")
 
 
-def batch_delete(task_rank):
+def batch_delete(task_local_id):
     """This function deletes a task that has been repeated
     following a rehearsal schema"""
 
     print(Fore.YELLOW + "Suppression de la tâche...")
 
-    # Deletion on TickTick
-    client.task.delete(local_data["tasks"][task_rank]["tasks_dicts"])
+    # First we retrieve the task corresponding to this local id
+    task_data = storage_manager.fetch_task_data(task_local_id)
 
-    # Local deletion
-    local_data["tasks"].pop(task_rank)
-    refresh_storage()
+    # We delete the task on TickTick and then locally
+    api_client.batch_delete_tasks(task_data["project_id"], task_data["rehearsal_ids"])
+    storage_manager.delete_task(task_data["id"])
 
     print(Fore.GREEN + "Tâche supprimée avec succès\n")
 
@@ -127,7 +85,7 @@ Priority = Enum(
 )
 
 
-def prompt_task_data(title=None, project_ID=None, schema=None, priority=None):
+def prompt_task_data(title=None, project_id=None, schema_id=None, priority=None):
     """This function displays a menu prompting the user for all the information needed
     to create or edit a task. The arguments define default values."""
 
@@ -137,29 +95,21 @@ def prompt_task_data(title=None, project_ID=None, schema=None, priority=None):
                 "title", config["task_creation_menu"]["title_message"], title
             ),
             inquirer.List(
-                "project_ID",
+                "project_id",
                 config["task_creation_menu"]["project_message"],
                 list(
                     map(
                         lambda project: (project["name"], project["id"]),
-                        filter(
-                            lambda project: project["groupId"] == GINETTE_GROUP_ID,
-                            client.state["projects"],
-                        ),
+                        api_client.projects,
                     )
                 ),
-                project_ID,
+                project_id,
             ),
             inquirer.List(
-                "schema",
+                "schema_id",
                 config["task_creation_menu"]["schema_message"],
-                list(
-                    map(
-                        lambda schema: (schema["name"], schema["schema"]),
-                        local_data["schemas"],
-                    )
-                ),
-                schema,
+                storage_manager.fetch_schemas_descriptors(),
+                schema_id,
             ),
             inquirer.List(
                 "priority",
@@ -197,9 +147,7 @@ def prompt_task_selection():
             inquirer.List(
                 "selection",
                 config["task_selection_menu"]["message"],
-                choices=[
-                    (task["title"], k) for k, task in enumerate(local_data["tasks"])
-                ],
+                choices=storage_manager.fetch_tasks_descriptors(),
             )
         ]
     )
@@ -242,10 +190,7 @@ def prompt_schema_selection():
             inquirer.List(
                 "selection",
                 config["schema_selection_menu"]["message"],
-                choices=[
-                    (schema["name"], k)
-                    for k, schema in enumerate(local_data["schemas"])
-                ],
+                choices=storage_manager.fetch_schemas_descriptors(),
             )
         ]
     )
@@ -289,25 +234,25 @@ while continue_app:
             if task_data is not None:
                 batch_create(
                     task_data["title"],
-                    task_data["project_ID"],
+                    task_data["project_id"],
                     task_data["priority"],
-                    task_data["schema"],
+                    task_data["schema_id"],
                 )
 
         elif task_menu_answer == TaskMenuChoices.EDIT:
-            if len(local_data["tasks"]) > 0:
+            if len(storage_manager.fetch_tasks_descriptors()) > 0:
                 edited_task_rank = prompt_task_selection()  # Selection of the task
 
                 if edited_task_rank is not None:
-                    former_task_data = local_data["tasks"][
+                    former_task_data = storage_manager.fetch_task_data(
                         edited_task_rank
-                    ]  # Current task
+                    )  # Current task
 
                     # We prompt the user for the updated information
                     new_task_data = prompt_task_data(
                         title=former_task_data["title"],
-                        project_ID=former_task_data["project_ID"],
-                        schema=former_task_data["schema"],
+                        project_id=former_task_data["project_id"],
+                        schema_id=former_task_data["schema_id"],
                         priority=former_task_data["priority"],
                     )
 
@@ -318,16 +263,16 @@ while continue_app:
                         # Then we recreate the tasks
                         batch_create(
                             new_task_data["title"],
-                            new_task_data["project_ID"],
+                            new_task_data["project_id"],
                             new_task_data["priority"],
-                            new_task_data["schema"],
+                            new_task_data["schema_id"],
                         )
 
             else:
                 print(Fore.RED + "Aucune tâche à éditer")
 
         elif task_menu_answer == TaskMenuChoices.DELETE:
-            if len(local_data["tasks"]) > 0:
+            if len(storage_manager.fetch_tasks_descriptors()) > 0:
                 # We prompt the user to select an existing task
                 deleted_task_rank = prompt_task_selection()
 
@@ -370,15 +315,18 @@ while continue_app:
             new_schema_data = prompt_schema_data()
 
             if new_schema_data is not None:
-                # We change the <local_data> object first and then refresh the file
-                local_data["schemas"].append(new_schema_data)
-                refresh_storage()
+                # We add the schema to the local database
+                storage_manager.save_schema(
+                    new_schema_data["name"], new_schema_data["schema"]
+                )
+
+                print(Fore.GREEN + "\nSchéma créé avec succès\n")
 
         elif schema_menu_answer == SchemaMenuChoices.EDIT:
             schema_rank = prompt_schema_selection()  # Schema selection menu
 
             if schema_rank is not None:
-                former_schema_data = local_data["schemas"][schema_rank]
+                former_schema_data = storage_manager.fetch_schema_data(schema_rank)
 
                 # We prompt the user to type in the new data
                 new_schema_data = prompt_schema_data(
@@ -389,20 +337,24 @@ while continue_app:
                 )
 
                 if new_schema_data is not None:
-                    # We change the <local_data> object first and then refresh the file
-                    local_data["schemas"][schema_rank] = new_schema_data
-                    refresh_storage()
+                    # We change the data stored in the local database
+                    storage_manager.edit_schema(
+                        schema_rank, new_schema_data["name"], new_schema_data["schema"]
+                    )
+
+                    print(Fore.GREEN + "\nSchéma édité avec succès\n")
 
         elif schema_menu_answer == SchemaMenuChoices.DELETE:
             # We prompt the user to select the schema he wants to delete
             deleted_schema_rank = prompt_schema_selection()
 
-            # We delete the schema in the <local_data> object and then refresh the file
+            # We delete the schema in the local database
             if deleted_schema_rank is not None and inquirer.confirm(
                 config["schema_deletion_message"]
             ):
-                local_data["schemas"].pop()
-                refresh_storage()
+                storage_manager.delete_schema(deleted_schema_rank)
+
+                print(Fore.GREEN + "\nSchéma édité avec succès\n")
 
     else:
         continue_app = False
